@@ -131,7 +131,7 @@ public class Room {
 	 * @param message
 	 * @return True if there is a message at last position with the same hour&minute
 	 */
-	public boolean previousMessageHasSameMinute(Message message) {
+	public boolean previousMessageHasSameTime(Message message) {
 		Message previous = messages.lower(message);
 		if(previous == null) {
 			return false;

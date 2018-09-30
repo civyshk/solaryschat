@@ -20,10 +20,15 @@
 package net.project104.chat.solaris;
 
 import java.awt.EventQueue;
+import java.net.InetAddress;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -221,8 +226,8 @@ public class Presenter {
 			nodeName = origin.getDisplayName();
 		}
 		
-		if(!room.previousMessageHasSameMinute(message)) {
-			frame.appendTime(roomID, message.getHour() + ":" + message.getMinute());
+		if(!room.previousMessageHasSameTime(message)) {
+			frame.appendTime(roomID, String.format("%02d:%02d", message.getHour(), message.getMinute()));
 			frame.appendUserName(roomID, nodeIDs.get(origin), nodeName);
 		}else {
 			if(!room.previousMessageHasSameAuthor(message)) {
@@ -291,6 +296,14 @@ public class Presenter {
 	}
 	
 	//From Model ------------------------------------------\
+	public void showBroadcasts(List<InetAddress> broadcasts) {
+		ArrayList<String> strBroadcasts = new ArrayList<>();
+		for(InetAddress broadcast : broadcasts) {
+			strBroadcasts.add(broadcast.getHostAddress());
+		}
+		frame.showBroadcasts(strBroadcasts);
+	}
+	
 	public void roomAvailable(Room room) {
 		int roomID = frame.getNewRoomID();
 		roomIDs.put(room, roomID);

@@ -79,6 +79,7 @@ public class Model {
 	public void init(String userName) {
 		net = new NetManager(this, userName);
 		addRoom(null);
+		presenter.showBroadcasts(net.getBroadcasts());
 	}
 	
 	public void connect() {

@@ -26,6 +26,7 @@ import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -48,6 +49,7 @@ import javax.swing.text.StyleConstants;
 import net.project104.chat.solaris.Presenter;
 import net.project104.chat.solaris.UserEventsListener;
 import net.project104.chat.solaris.View;
+import javax.swing.JComboBox;
 
 public class MainFrame extends JFrame implements View, UserEventsListener{
 		
@@ -63,8 +65,9 @@ public class MainFrame extends JFrame implements View, UserEventsListener{
 	private Random rand;
 	private Component verticalGlue;
 	private JLabel lblName;
-	private JTextField tfIP;
+//	private JTextField tfIP;
 	private JLabel lblIP;
+	private JComboBox<String> cmbBroadcasts;	
 	
 	private Map<Integer, SimpleAttributeSet[]> styles;
 	private SimpleAttributeSet timeAttributes;
@@ -106,17 +109,27 @@ public class MainFrame extends JFrame implements View, UserEventsListener{
 		lblIP.setAlignmentX(Component.CENTER_ALIGNMENT);
 		pActions.add(lblIP);
 		
-		tfIP = new JTextField();
-		tfIP.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent arg0) {
-				setBroadcastIP(tfIP.getText());
+//		tfIP = new JTextField();
+//		tfIP.addActionListener(new ActionListener() {
+//			@Override
+//			public void actionPerformed(ActionEvent arg0) {
+//				setBroadcastIP(tfIP.getText());
+//			}
+//		});
+		
+//		tfIP.setText("192.168.1.255");
+//		tfIP.setColumns(10);
+//		pActions.add(tfIP);
+		
+		//Empty broadcasts will be filled later
+		cmbBroadcasts = new JComboBox<String>();
+		cmbBroadcasts.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent ev) {
+				setBroadcastIP((String) cmbBroadcasts.getSelectedItem());
 			}
 		});
-		
-		//TODO get this from NetManager
-		tfIP.setText("192.168.1.255");
-		tfIP.setColumns(10);
-		pActions.add(tfIP);
+		pActions.add(cmbBroadcasts);
 		
 		verticalGlue = Box.createVerticalGlue();
 		verticalGlue.setPreferredSize(new Dimension(1, Short.MAX_VALUE));
@@ -127,12 +140,13 @@ public class MainFrame extends JFrame implements View, UserEventsListener{
 		bConnect.setAlignmentX(Component.CENTER_ALIGNMENT);
 		bConnect.setEnabled(false);
 		bConnect.addActionListener(new ActionListener() {
+			@Override
 			public void actionPerformed(ActionEvent e) {
 				connect();
 			}
 		});
 		
-		pActions.add(bConnect);
+//		pActions.add(bConnect);
 		
 		bDisconnect = new JButton("Disconnect");
 		bDisconnect.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -142,7 +156,7 @@ public class MainFrame extends JFrame implements View, UserEventsListener{
 				disconnect();
 			}
 		});
-		pActions.add(bDisconnect);
+//		pActions.add(bDisconnect);
 		
 		tpRooms = new JTabbedPane(JTabbedPane.TOP);
 		tpRooms.addChangeListener(new ChangeListener() {
@@ -279,7 +293,8 @@ public class MainFrame extends JFrame implements View, UserEventsListener{
 	@Override
 	public void setConnected() {
 		bConnect.setEnabled(false);
-		tfIP.setEnabled(true);
+//		tfIP.setEnabled(true);
+		cmbBroadcasts.setEnabled(true);
 //		bDisconnect.setEnabled(true);
 		bDisconnect.setEnabled(false);
 	}
@@ -287,13 +302,21 @@ public class MainFrame extends JFrame implements View, UserEventsListener{
 	@Override
 	public void setDisconnected() {
 		bConnect.setEnabled(true);
-		tfIP.setEnabled(true);
+//		tfIP.setEnabled(true);
+		cmbBroadcasts.setEnabled(true);
 		bDisconnect.setEnabled(false);
 	}
 	
 	@Override
 	public int getNewRoomID() {
 		return generateRoomID();
+	}
+	
+	@Override
+	public void showBroadcasts(Collection<String> broadcasts) {
+		for(String broadcast : broadcasts) {
+			cmbBroadcasts.addItem(broadcast);
+		}
 	}
 
 	@Override

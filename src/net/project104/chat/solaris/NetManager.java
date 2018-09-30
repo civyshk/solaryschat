@@ -23,9 +23,16 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Protocol messages, case sensitive:
@@ -51,13 +58,16 @@ import java.net.UnknownHostException;
  */
 public class NetManager {
 	public static final int DEFAULT_PORT = 41315;
-	private String broadcast = "192.168.1.255";
-//	private String broadcast = "10.2.3.255";
+
+	private ArrayList<InetAddress> broadcasts = new ArrayList<InetAddress>();
+	private InetAddress broadcast = null;
 	
 	private Model model;
 	private Node selfNode;
 	private Server server;
 	private DatagramSocket socket;
+	
+	private final String mySigning;
 	
 	public NetManager(Model model, String userName) {
 		this.model = model;
@@ -74,6 +84,99 @@ public class NetManager {
 		}else {
 			selfNode = new Node(getLocalAddress());
 		}
+		
+		mySigning = String.valueOf(Math.random());
+	}
+	
+	public InetAddress getBroadcastAddress() {
+		if(broadcast == null) {
+			return getBestBroadcastAddress();
+		}else {
+			return broadcast;
+		}
+	}
+	
+	public List<InetAddress> getBroadcasts(){
+		if(broadcasts.isEmpty()) {
+			generateBroadcasts();			
+		}
+		return broadcasts;
+	}
+	
+	/**
+	 * Try to return the best looking broadcast address, according
+	 * to similarity to the ip address of the local node
+	 * @return The best broadcast address it finds
+	 */
+	private InetAddress getBestBroadcastAddress() {
+		if(broadcasts.isEmpty()) {
+			generateBroadcasts();
+		}
+		
+		if(broadcasts.isEmpty()) {
+			return broadcasts.get(0);
+		}
+		
+		return null;
+	}
+	
+	/* 
+	 * Taken from 
+	 * https://stackoverflow.com/questions/4887675/detecting-all-available-networks-broadcast-addresses-in-java
+	 */
+	private void generateBroadcasts() {
+		broadcasts.clear();
+	    Enumeration<NetworkInterface> ifaces;
+	    try {
+	        ifaces = NetworkInterface.getNetworkInterfaces();
+	
+	        while(ifaces.hasMoreElements()) {
+	            NetworkInterface iface = (NetworkInterface) ifaces.nextElement();
+	
+	            if(iface == null) continue;
+	
+	            if(!iface.isLoopback() && iface.isUp()) {
+	                //System.out.println("Found non-loopback, up interface:" + iface);
+	
+	                Iterator<InterfaceAddress> it = iface.getInterfaceAddresses().iterator();
+	                while (it.hasNext()) {
+	                    InterfaceAddress address = it.next();
+	                    //System.out.println("Found address: " + address);
+	                    if(address == null) continue;
+	                    InetAddress broadcast = address.getBroadcast();
+	                    if(broadcast != null) {
+	                        broadcasts.add(broadcast);
+	                    }
+	                }
+	            }
+	        }
+	    } catch (SocketException ex) {
+	        System.err.println("Error while getting network interfaces");
+	        ex.printStackTrace();
+	    }
+
+		if(!broadcasts.isEmpty()) {		    
+			InetAddress bestAddress = broadcasts.get(0);
+			int bestScore = 0;
+			byte[] localBytes = selfNode.getAddress().getAddress();
+			
+			for(InetAddress address : broadcasts) {
+				byte[] bytes = address.getAddress();
+				if(bytes.length == localBytes.length) {
+					int score = 0;
+					for(int i = 0; i < bytes.length; ++i) {
+						score += (bytes[i] == localBytes[i]) ? 1 : 0;
+					}
+					if(score > bestScore){
+						bestAddress = address;
+						bestScore = score;
+					}
+				}
+			}
+			
+			broadcasts.remove(bestAddress);
+			broadcasts.add(0, bestAddress);
+		}
 	}
 	
 	/**
@@ -83,16 +186,10 @@ public class NetManager {
 	public void join() {
 		selfNode.join();
 		InetAddress address = getBroadcastAddress();
-		sendJoin(address);
-	}
-	
-	private InetAddress getBroadcastAddress() {
-		try {
-			return InetAddress.getByName(broadcast);
-		} catch (UnknownHostException e) {
-			// TODO let caller know
-			e.printStackTrace();
-			return null;
+		if(address != null) {
+			sendJoin(address);
+		}else {
+			System.err.println("Error, can't obtain a broadcast address");
 		}
 	}
 	
@@ -123,24 +220,29 @@ public class NetManager {
 			return;
 		}
 		
-		String[] tokens = command.split(" ", 2);
-		if(tokens.length != 2) {
-			//TODO log this
+		String[] tokens = command.split(" ", 3);
+		if(tokens.length != 3) {
+			System.err.println("Received command with erroneous length: " + tokens.length);
 			return;
-		}
-		switch(tokens[0]) {
-			case "MSG":   receivedMsg  (tokens[1], from); break;
-			case "JOIN":  receivedJoin (tokens[1], from); break;
-			case "LEAVE": receivedLeave(tokens[1], from); break;
-			case "HELLO": receivedHello(tokens[1], from); break;
-			default: /*TODO log this malformed message*/; break;				
+		}else if(tokens[0].equals(mySigning)) {
+			//message from this same node. Happens with some broadcast addresses
+			System.err.println(String.format("Received %s command from this same node. Skip", tokens[1]));
+			return;
+		}		
+		
+		switch(tokens[1]) {
+			case "MSG":   receivedMsg  (tokens[2], from); break;
+			case "JOIN":  receivedJoin (tokens[2], from); break;
+			case "LEAVE": receivedLeave(tokens[2], from); break;
+			case "HELLO": receivedHello(tokens[2], from); break;
+			default: System.err.println("Received bad command: " + tokens[1]);; break;				
 		}
 	}
 	
 	private void receivedMsg(String command, InetAddress address) {
 		String[] tokens = command.split(" ", 3);
 		if(tokens.length != 3){
-			//TODO log this malformed message
+			System.err.println(String.format("Received bad message with %d fields", tokens.length));
 			return;
 		}
 		boolean isPublic = false;
@@ -209,9 +311,13 @@ public class NetManager {
 		}		
 	}
 	
+	private String getSignedCommand(String command) {
+		return mySigning + " " + command;
+	}
+	
 	private Message sendMessage(String text, InetAddress address, boolean isPublic) {
-		String command = String.format("MSG PUBLIC=%s AUTODELETE=%d CONTENT=%s",
-				isPublic?"TRUE":"FALSE", -1, text);
+		String command = getSignedCommand(String.format("MSG PUBLIC=%s AUTODELETE=%d CONTENT=%s",
+				isPublic?"TRUE":"FALSE", -1, text));
         try {
         	byte[] buffer = command.getBytes("UTF-8");
         	DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, DEFAULT_PORT);
@@ -240,7 +346,7 @@ public class NetManager {
 	}
 	
 	private void sendPacket(String command, InetAddress address) {
-		byte[] buffer = command.getBytes();
+		byte[] buffer = getSignedCommand(command).getBytes();
 		DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, DEFAULT_PORT);
 		try {
 			socket.send(packet);
@@ -327,7 +433,10 @@ public class NetManager {
 		return selfNode;
 	}
 
-	/* copied from https://stackoverflow.com/questions/9481865/getting-the-ip-address-of-the-current-machine-using-java */
+	/* 
+	 * copied from 
+	 * https://stackoverflow.com/questions/9481865/getting-the-ip-address-of-the-current-machine-using-java 
+	 */
 	public static InetAddress getLocalAddress() {
 		try(final DatagramSocket socket = new DatagramSocket()){
 			socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
@@ -347,8 +456,12 @@ public class NetManager {
 	}
 
 	public void setBroadcastIP(String broadcast) {
-		this.broadcast = broadcast;	
-		this.join();
+		try {
+			this.broadcast = InetAddress.getByName(broadcast);
+			this.join();
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	

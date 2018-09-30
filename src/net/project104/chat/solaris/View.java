@@ -19,15 +19,19 @@
 
 package net.project104.chat.solaris;
 
+import java.util.Collection;
+
 public interface View {
 	
-	//From Presenter --------------------------------------\
+	//From Presenter --------------------------------------\	
 	public void setPresenter(Presenter presenter);
 	public void show();
 	public void setConnected();
 	public void setDisconnected();
 	
 	public int getNewRoomID();
+	
+	public void showBroadcasts(Collection<String> broadcasts);
 	
 	/**
 	 * @param roomID ID of the new room, previously got from getNewRoomID()
